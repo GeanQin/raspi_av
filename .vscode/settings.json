@@ -1,0 +1,11 @@
+{
+    "commentTranslate.targetLanguage": "zh-CN",
+    "files.associations": {
+        "raspicommonsettings.h": "c",
+        "mmal_types.h": "c",
+        "raspipreview.h": "c",
+        "mmal_connection.h": "c",
+        "sysexits.h": "c",
+        "raspicamcontrol.h": "c"
+    }
+}
