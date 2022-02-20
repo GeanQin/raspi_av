@@ -1371,7 +1371,7 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 	return keep_running;
 }
 
-int raspi_vid_init()
+int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 {
 	RASPIVID_STATE state;
 	int exit_code = EX_OK;
@@ -1390,6 +1390,27 @@ int raspi_vid_init()
 	bcm_host_init();
 
 	default_status(&state);
+
+	if (raspi_vid_cfg.raspi_vid_width > 0)
+	{
+		state.common_settings.width = raspi_vid_cfg.raspi_vid_width;
+	}
+	if (raspi_vid_cfg.raspi_vid_height > 0)
+	{
+		state.common_settings.height = raspi_vid_cfg.raspi_vid_height;
+	}
+	if (raspi_vid_cfg.raspi_vid_bitrate > 0)
+	{
+		state.bitrate = raspi_vid_cfg.raspi_vid_bitrate;
+	}
+	if (raspi_vid_cfg.raspi_vid_fps > 0)
+	{
+		state.framerate = raspi_vid_cfg.raspi_vid_fps;
+	}
+	if (raspi_vid_cfg.raspi_vid_gop > 0)
+	{
+		state.intraperiod = raspi_vid_cfg.raspi_vid_gop;
+	}
 
 	if ((status = create_camera_component(&state)) != MMAL_SUCCESS)
 	{
