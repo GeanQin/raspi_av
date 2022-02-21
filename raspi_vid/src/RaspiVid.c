@@ -147,6 +147,12 @@ struct RASPIVID_STATE_S
 	int slices;
 };
 
+static MMAL_PORT_T *camera_video_port = NULL;
+static MMAL_PORT_T *encoder_input_port = NULL;
+static MMAL_PORT_T *encoder_output_port = NULL;
+static RASPIVID_STATE state;
+static int running = 0;
+
 /// Structure to cross reference H264 profile strings against the MMAL parameter equivalent
 static XREF_T profile_map[] =
 	{
@@ -1373,24 +1379,11 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 
 int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 {
-	RASPIVID_STATE state;
 	int exit_code = EX_OK;
-
-	MMAL_STATUS_T status = MMAL_SUCCESS;
-	MMAL_PORT_T *camera_preview_port = NULL;
-	MMAL_PORT_T *camera_video_port = NULL;
-	MMAL_PORT_T *camera_still_port = NULL;
-	MMAL_PORT_T *preview_input_port = NULL;
-	MMAL_PORT_T *encoder_input_port = NULL;
-	MMAL_PORT_T *encoder_output_port = NULL;
-	MMAL_PORT_T *splitter_input_port = NULL;
-	MMAL_PORT_T *splitter_output_port = NULL;
-	MMAL_PORT_T *splitter_preview_port = NULL;
+	MMAL_STATUS_T mmal_status = MMAL_SUCCESS;
 
 	bcm_host_init();
-
 	default_status(&state);
-
 	if (raspi_vid_cfg.raspi_vid_width > 0)
 	{
 		state.common_settings.width = raspi_vid_cfg.raspi_vid_width;
@@ -1412,12 +1405,12 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		state.intraperiod = raspi_vid_cfg.raspi_vid_gop;
 	}
 
-	if ((status = create_camera_component(&state)) != MMAL_SUCCESS)
+	if ((mmal_status = create_camera_component(&state)) != MMAL_SUCCESS)
 	{
 		vcos_log_error("%s: Failed to create camera component", __func__);
 		exit_code = EX_SOFTWARE;
 	}
-	else if ((status = create_encoder_component(&state)) != MMAL_SUCCESS)
+	else if ((mmal_status = create_encoder_component(&state)) != MMAL_SUCCESS)
 	{
 		vcos_log_error("%s: Failed to create encode component", __func__);
 		raspipreview_destroy(&state.preview_parameters);
@@ -1430,119 +1423,67 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		encoder_input_port = state.encoder_component->input[0];
 		encoder_output_port = state.encoder_component->output[0];
 
-		// Now connect the camera to the encoder
-		status = connect_ports(camera_video_port, encoder_input_port, &state.encoder_connection);
-
-		if (status != MMAL_SUCCESS)
+		mmal_status = connect_ports(camera_video_port, encoder_input_port, &state.encoder_connection);
+		if (mmal_status != MMAL_SUCCESS)
 		{
 			state.encoder_connection = NULL;
 			vcos_log_error("%s: Failed to connect camera video port to encoder input", __func__);
 			goto error;
 		}
 
-		if (status == MMAL_SUCCESS)
+		state.callback_data.pstate = &state;
+		state.callback_data.abort = 0;
+		state.callback_data.file_handle = stdout;
+		encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *)&state.callback_data;
+
+		mmal_status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
+		if (mmal_status != MMAL_SUCCESS)
 		{
-			// Set up our userdata - this is passed though to the callback where we need the information.
-			state.callback_data.pstate = &state;
-			state.callback_data.abort = 0;
-
-			state.callback_data.file_handle = NULL;
-
-			if (state.common_settings.filename)
-			{
-				if (state.common_settings.filename[0] == '-')
-				{
-					state.callback_data.file_handle = stdout;
-				}
-				else
-				{
-					state.callback_data.file_handle = open_filename(&state, state.common_settings.filename);
-				}
-
-				if (!state.callback_data.file_handle)
-				{
-					// Notify user, carry on but discarding encoded output buffers
-					vcos_log_error("%s: Error opening output file: %s\nNo output file will be generated\n", __func__, state.common_settings.filename);
-				}
-			}
-
-			// Set up our userdata - this is passed though to the callback where we need the information.
-			encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *)&state.callback_data;
-
-			// Enable the encoder output port and tell it its callback function
-			status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
-
-			if (status != MMAL_SUCCESS)
-			{
-				vcos_log_error("Failed to setup encoder output");
-				goto error;
-			}
-
-			// Only encode stuff if we have a filename and it opened
-			// Note we use the copy in the callback, as the call back MIGHT change the file handle
-			if (state.callback_data.file_handle)
-			{
-				int running = 1;
-
-				// Send all the buffers to the encoder output port
-				if (state.callback_data.file_handle)
-				{
-					int num = mmal_queue_length(state.encoder_pool->queue);
-					int q;
-					for (q = 0; q < num; q++)
-					{
-						MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state.encoder_pool->queue);
-
-						if (!buffer)
-							vcos_log_error("Unable to get a required buffer %d from pool queue", q);
-
-						if (mmal_port_send_buffer(encoder_output_port, buffer) != MMAL_SUCCESS)
-							vcos_log_error("Unable to send a buffer to encoder output port (%d)", q);
-					}
-				}
-
-				int initialCapturing = state.bCapturing;
-				while (running)
-				{
-					// Change state
-
-					state.bCapturing = !state.bCapturing;
-
-					if (mmal_port_parameter_set_boolean(camera_video_port, MMAL_PARAMETER_CAPTURE, state.bCapturing) != MMAL_SUCCESS)
-					{
-						// How to handle?
-					}
-
-					// In circular buffer mode, exit and save the buffer (make sure we do this after having paused the capture
-					if (state.bCircularBuffer && !state.bCapturing)
-					{
-						break;
-					}
-
-					running = wait_for_next_change(&state);
-				}
-			}
+			vcos_log_error("Failed to setup encoder output");
+			goto error;
 		}
-		else
+
+		int num = mmal_queue_length(state.encoder_pool->queue);
+		int q;
+		for (q = 0; q < num; q++)
 		{
-			mmal_status_to_int(status);
-			vcos_log_error("%s: Failed to connect camera to preview", __func__);
+			MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state.encoder_pool->queue);
+
+			if (!buffer)
+				vcos_log_error("Unable to get a required buffer %d from pool queue", q);
+
+			if (mmal_port_send_buffer(encoder_output_port, buffer) != MMAL_SUCCESS)
+				vcos_log_error("Unable to send a buffer to encoder output port (%d)", q);
 		}
+
+		// pthread_create(&vid_pid, NULL, raspi_fetch_video, NULL);
+		running = 1;
+		while (running)
+		{
+			state.bCapturing = !state.bCapturing;
+
+			if (mmal_port_parameter_set_boolean(camera_video_port, MMAL_PARAMETER_CAPTURE, state.bCapturing) != MMAL_SUCCESS)
+			{
+				// How to handle?
+			}
+
+			// In circular buffer mode, exit and save the buffer (make sure we do this after having paused the capture
+			if (state.bCircularBuffer && !state.bCapturing)
+			{
+				break;
+			}
+
+			running = wait_for_next_change(&state);
+		}
+
 	error:
-
-		mmal_status_to_int(status);
+		mmal_status_to_int(mmal_status);
 
 		// Disable all our ports that are not handled by connections
-		check_disable_port(camera_still_port);
 		check_disable_port(encoder_output_port);
 
 		if (state.encoder_connection)
 			mmal_connection_destroy(state.encoder_connection);
-
-		// Can now close our file. Note disabling ports may flush buffers which causes
-		// problems if we have already closed the file!
-		if (state.callback_data.file_handle && state.callback_data.file_handle != stdout)
-			fclose(state.callback_data.file_handle);
 
 		/* Disable components */
 		if (state.encoder_component)
@@ -1555,7 +1496,7 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		destroy_camera_component(&state);
 	}
 
-	if (status != MMAL_SUCCESS)
+	if (mmal_status != MMAL_SUCCESS)
 		raspicamcontrol_check_configuration(128);
 
 	return exit_code;
