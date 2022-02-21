@@ -213,56 +213,50 @@ static int wait_method_description_size = sizeof(wait_method_description) / size
  *
  * @param state Pointer to state structure to assign defaults to
  */
-static void default_status(RASPIVID_STATE *state)
+static void default_status()
 {
-	if (!state)
-	{
-		vcos_assert(0);
-		return;
-	}
-
 	// Default everything to zero
-	memset(state, 0, sizeof(RASPIVID_STATE));
+	memset(&state, 0, sizeof(RASPIVID_STATE));
 
-	raspicommonsettings_set_defaults(&state->common_settings);
+	raspicommonsettings_set_defaults(&(state.common_settings));
 
 	// Now set anything non-zero
-	state->timeout = 0; // replaced with 5000ms later if unset
-	state->common_settings.filename = "-";
-	state->common_settings.width = 1920; // Default to 1080p
-	state->common_settings.height = 1080;
-	state->encoding = MMAL_ENCODING_H264;
-	state->bitrate = 17000000; // This is a decent default bitrate for 1080p
-	state->framerate = VIDEO_FRAME_RATE_NUM;
-	state->intraperiod = -1; // Not set
-	state->quantisationParameter = 0;
-	state->demoMode = 0;
-	state->demoInterval = 250; // ms
-	state->immutableInput = 1;
-	state->profile = MMAL_VIDEO_PROFILE_H264_HIGH;
-	state->level = MMAL_VIDEO_LEVEL_H264_4;
-	state->waitMethod = WAIT_METHOD_FOREVER;
-	state->onTime = 5000;
-	state->offTime = 5000;
-	state->bCapturing = 0;
-	state->bInlineHeaders = 0;
-	state->segmentSize = 0; // 0 = not segmenting the file.
-	state->segmentNumber = 1;
-	state->segmentWrap = 0; // Point at which to wrap segment number back to 1. 0 = no wrap
-	state->splitNow = 0;
-	state->splitWait = 0;
-	state->inlineMotionVectors = 0;
-	state->intra_refresh_type = -1;
-	state->frame = 0;
-	state->netListen = false;
-	state->addSPSTiming = MMAL_FALSE;
-	state->slices = 1;
+	state.timeout = 0; // replaced with 5000ms later if unset
+	state.common_settings.filename = "-";
+	state.common_settings.width = 1920; // Default to 1080p
+	state.common_settings.height = 1080;
+	state.encoding = MMAL_ENCODING_H264;
+	state.bitrate = 17000000; // This is a decent default bitrate for 1080p
+	state.framerate = VIDEO_FRAME_RATE_NUM;
+	state.intraperiod = -1; // Not set
+	state.quantisationParameter = 0;
+	state.demoMode = 0;
+	state.demoInterval = 250; // ms
+	state.immutableInput = 1;
+	state.profile = MMAL_VIDEO_PROFILE_H264_HIGH;
+	state.level = MMAL_VIDEO_LEVEL_H264_4;
+	state.waitMethod = WAIT_METHOD_FOREVER;
+	state.onTime = 5000;
+	state.offTime = 5000;
+	state.bCapturing = 0;
+	state.bInlineHeaders = 0;
+	state.segmentSize = 0; // 0 = not segmenting the file.
+	state.segmentNumber = 1;
+	state.segmentWrap = 0; // Point at which to wrap segment number back to 1. 0 = no wrap
+	state.splitNow = 0;
+	state.splitWait = 0;
+	state.inlineMotionVectors = 0;
+	state.intra_refresh_type = -1;
+	state.frame = 0;
+	state.netListen = false;
+	state.addSPSTiming = MMAL_FALSE;
+	state.slices = 1;
 
 	// Setup preview window defaults
-	raspipreview_set_defaults(&state->preview_parameters);
+	raspipreview_set_defaults(&(state.preview_parameters));
 
 	// Set up the camera_parameters to default
-	raspicamcontrol_set_defaults(&state->camera_parameters);
+	raspicamcontrol_set_defaults(&(state.camera_parameters));
 }
 
 /**
@@ -270,40 +264,34 @@ static void default_status(RASPIVID_STATE *state)
  *
  * @param state Pointer to state structure to assign defaults to
  */
-static void dump_status(RASPIVID_STATE *state)
+static void dump_status()
 {
 	int i;
 
-	if (!state)
-	{
-		vcos_assert(0);
-		return;
-	}
+	raspicommonsettings_dump_parameters(&(state.common_settings));
 
-	raspicommonsettings_dump_parameters(&state->common_settings);
-
-	fprintf(stderr, "bitrate %d, framerate %d, time delay %d\n", state->bitrate, state->framerate, state->timeout);
-	fprintf(stderr, "H264 Profile %s\n", raspicli_unmap_xref(state->profile, profile_map, profile_map_size));
-	fprintf(stderr, "H264 Level %s\n", raspicli_unmap_xref(state->level, level_map, level_map_size));
-	fprintf(stderr, "H264 Quantisation level %d, Inline headers %s\n", state->quantisationParameter, state->bInlineHeaders ? "Yes" : "No");
-	fprintf(stderr, "H264 Fill SPS Timings %s\n", state->addSPSTiming ? "Yes" : "No");
-	fprintf(stderr, "H264 Intra refresh type %s, period %d\n", raspicli_unmap_xref(state->intra_refresh_type, intra_refresh_map, intra_refresh_map_size), state->intraperiod);
-	fprintf(stderr, "H264 Slices %d\n", state->slices);
+	fprintf(stderr, "bitrate %d, framerate %d, time delay %d\n", state.bitrate, state.framerate, state.timeout);
+	fprintf(stderr, "H264 Profile %s\n", raspicli_unmap_xref(state.profile, profile_map, profile_map_size));
+	fprintf(stderr, "H264 Level %s\n", raspicli_unmap_xref(state.level, level_map, level_map_size));
+	fprintf(stderr, "H264 Quantisation level %d, Inline headers %s\n", state.quantisationParameter, state.bInlineHeaders ? "Yes" : "No");
+	fprintf(stderr, "H264 Fill SPS Timings %s\n", state.addSPSTiming ? "Yes" : "No");
+	fprintf(stderr, "H264 Intra refresh type %s, period %d\n", raspicli_unmap_xref(state.intra_refresh_type, intra_refresh_map, intra_refresh_map_size), state.intraperiod);
+	fprintf(stderr, "H264 Slices %d\n", state.slices);
 
 	// Not going to display segment data unless asked for it.
-	if (state->segmentSize)
-		fprintf(stderr, "Segment size %d, segment wrap value %d, initial segment number %d\n", state->segmentSize, state->segmentWrap, state->segmentNumber);
+	if (state.segmentSize)
+		fprintf(stderr, "Segment size %d, segment wrap value %d, initial segment number %d\n", state.segmentSize, state.segmentWrap, state.segmentNumber);
 
 	fprintf(stderr, "Wait method : ");
 	for (i = 0; i < wait_method_description_size; i++)
 	{
-		if (state->waitMethod == wait_method_description[i].nextWaitMethod)
+		if (state.waitMethod == wait_method_description[i].nextWaitMethod)
 			fprintf(stderr, "%s", wait_method_description[i].description);
 	}
-	fprintf(stderr, "\nInitial state '%s'\n", raspicli_unmap_xref(state->bCapturing, initial_map, initial_map_size));
+	fprintf(stderr, "\nInitial state '%s'\n", raspicli_unmap_xref(state.bCapturing, initial_map, initial_map_size));
 	fprintf(stderr, "\n\n");
 
-	raspicamcontrol_dump_parameters(&state->camera_parameters);
+	raspicamcontrol_dump_parameters(&(state.camera_parameters));
 }
 
 /**
@@ -493,48 +481,48 @@ static FILE *open_filename(RASPIVID_STATE *pState, char *filename)
  * @param state Pointer to state control struct
  *
  */
-static void update_annotation_data(RASPIVID_STATE *state)
+static void update_annotation_data()
 {
 	// So, if we have asked for a application supplied string, set it to the H264 or GPS parameters
-	if (state->camera_parameters.enable_annotate & ANNOTATE_APP_TEXT)
+	if (state.camera_parameters.enable_annotate & ANNOTATE_APP_TEXT)
 	{
 		char *text;
 
-		if (state->common_settings.gps)
+		if (state.common_settings.gps)
 		{
 			text = raspi_gps_location_string();
 		}
 		else
 		{
-			const char *refresh = raspicli_unmap_xref(state->intra_refresh_type, intra_refresh_map, intra_refresh_map_size);
+			const char *refresh = raspicli_unmap_xref(state.intra_refresh_type, intra_refresh_map, intra_refresh_map_size);
 
 			asprintf(&text, "%dk,%df,%s,%d,%s,%s",
-					 state->bitrate / 1000, state->framerate,
+					 state.bitrate / 1000, state.framerate,
 					 refresh ? refresh : "(none)",
-					 state->intraperiod,
-					 raspicli_unmap_xref(state->profile, profile_map, profile_map_size),
-					 raspicli_unmap_xref(state->level, level_map, level_map_size));
+					 state.intraperiod,
+					 raspicli_unmap_xref(state.profile, profile_map, profile_map_size),
+					 raspicli_unmap_xref(state.level, level_map, level_map_size));
 		}
 
-		raspicamcontrol_set_annotate(state->camera_component, state->camera_parameters.enable_annotate, text,
-									 state->camera_parameters.annotate_text_size,
-									 state->camera_parameters.annotate_text_colour,
-									 state->camera_parameters.annotate_bg_colour,
-									 state->camera_parameters.annotate_justify,
-									 state->camera_parameters.annotate_x,
-									 state->camera_parameters.annotate_y);
+		raspicamcontrol_set_annotate(state.camera_component, state.camera_parameters.enable_annotate, text,
+									 state.camera_parameters.annotate_text_size,
+									 state.camera_parameters.annotate_text_colour,
+									 state.camera_parameters.annotate_bg_colour,
+									 state.camera_parameters.annotate_justify,
+									 state.camera_parameters.annotate_x,
+									 state.camera_parameters.annotate_y);
 
 		free(text);
 	}
 	else
 	{
-		raspicamcontrol_set_annotate(state->camera_component, state->camera_parameters.enable_annotate, state->camera_parameters.annotate_string,
-									 state->camera_parameters.annotate_text_size,
-									 state->camera_parameters.annotate_text_colour,
-									 state->camera_parameters.annotate_bg_colour,
-									 state->camera_parameters.annotate_justify,
-									 state->camera_parameters.annotate_x,
-									 state->camera_parameters.annotate_y);
+		raspicamcontrol_set_annotate(state.camera_component, state.camera_parameters.enable_annotate, state.camera_parameters.annotate_string,
+									 state.camera_parameters.annotate_text_size,
+									 state.camera_parameters.annotate_text_colour,
+									 state.camera_parameters.annotate_bg_colour,
+									 state.camera_parameters.annotate_justify,
+									 state.camera_parameters.annotate_x,
+									 state.camera_parameters.annotate_y);
 	}
 }
 
@@ -655,7 +643,7 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
  * @return MMAL_SUCCESS if all OK, something else otherwise
  *
  */
-static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
+static MMAL_STATUS_T create_camera_component()
 {
 	MMAL_COMPONENT_T *camera = 0;
 	MMAL_ES_FORMAT_T *format;
@@ -671,9 +659,9 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 		goto error;
 	}
 
-	status = raspicamcontrol_set_stereo_mode(camera->output[0], &state->camera_parameters.stereo_mode);
-	status += raspicamcontrol_set_stereo_mode(camera->output[1], &state->camera_parameters.stereo_mode);
-	status += raspicamcontrol_set_stereo_mode(camera->output[2], &state->camera_parameters.stereo_mode);
+	status = raspicamcontrol_set_stereo_mode(camera->output[0], &(state.camera_parameters.stereo_mode));
+	status += raspicamcontrol_set_stereo_mode(camera->output[1], &(state.camera_parameters.stereo_mode));
+	status += raspicamcontrol_set_stereo_mode(camera->output[2], &(state.camera_parameters.stereo_mode));
 
 	if (status != MMAL_SUCCESS)
 	{
@@ -682,7 +670,7 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	}
 
 	MMAL_PARAMETER_INT32_T camera_num =
-		{{MMAL_PARAMETER_CAMERA_NUM, sizeof(camera_num)}, state->common_settings.cameraNum};
+		{{MMAL_PARAMETER_CAMERA_NUM, sizeof(camera_num)}, state.common_settings.cameraNum};
 
 	status = mmal_port_parameter_set(camera->control, &camera_num.hdr);
 
@@ -699,7 +687,7 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 		goto error;
 	}
 
-	status = mmal_port_parameter_set_uint32(camera->control, MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG, state->common_settings.sensor_mode);
+	status = mmal_port_parameter_set_uint32(camera->control, MMAL_PARAMETER_CAMERA_CUSTOM_SENSOR_CONFIG, state.common_settings.sensor_mode);
 
 	if (status != MMAL_SUCCESS)
 	{
@@ -725,13 +713,13 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 		MMAL_PARAMETER_CAMERA_CONFIG_T cam_config =
 			{
 				{MMAL_PARAMETER_CAMERA_CONFIG, sizeof(cam_config)},
-				.max_stills_w = state->common_settings.width,
-				.max_stills_h = state->common_settings.height,
+				.max_stills_w = state.common_settings.width,
+				.max_stills_h = state.common_settings.height,
 				.stills_yuv422 = 0,
 				.one_shot_stills = 0,
-				.max_preview_video_w = state->common_settings.width,
-				.max_preview_video_h = state->common_settings.height,
-				.num_preview_video_frames = 3 + vcos_max(0, (state->framerate - 30) / 10),
+				.max_preview_video_w = state.common_settings.width,
+				.max_preview_video_h = state.common_settings.height,
+				.num_preview_video_frames = 3 + vcos_max(0, (state.framerate - 30) / 10),
 				.stills_capture_circular_buffer_height = 0,
 				.fast_preview_resume = 0,
 				.use_stc_timestamp = MMAL_PARAM_TIMESTAMP_MODE_RAW_STC};
@@ -748,14 +736,14 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	format->encoding = MMAL_ENCODING_OPAQUE;
 	format->encoding_variant = MMAL_ENCODING_I420;
 
-	if (state->camera_parameters.shutter_speed > 6000000)
+	if (state.camera_parameters.shutter_speed > 6000000)
 	{
 		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
 												{5, 1000},
 												{166, 1000}};
 		mmal_port_parameter_set(preview_port, &fps_range.hdr);
 	}
-	else if (state->camera_parameters.shutter_speed > 1000000)
+	else if (state.camera_parameters.shutter_speed > 1000000)
 	{
 		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
 												{166, 1000},
@@ -764,24 +752,24 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	}
 
 	// enable dynamic framerate if necessary
-	if (state->camera_parameters.shutter_speed)
+	if (state.camera_parameters.shutter_speed)
 	{
-		if (state->framerate > 1000000. / state->camera_parameters.shutter_speed)
+		if (state.framerate > 1000000. / state.camera_parameters.shutter_speed)
 		{
-			state->framerate = 0;
-			if (state->common_settings.verbose)
+			state.framerate = 0;
+			if (state.common_settings.verbose)
 				fprintf(stderr, "Enable dynamic frame rate to fulfil shutter speed requirement\n");
 		}
 	}
 
 	format->encoding = MMAL_ENCODING_OPAQUE;
-	format->es->video.width = VCOS_ALIGN_UP(state->common_settings.width, 32);
-	format->es->video.height = VCOS_ALIGN_UP(state->common_settings.height, 16);
+	format->es->video.width = VCOS_ALIGN_UP(state.common_settings.width, 32);
+	format->es->video.height = VCOS_ALIGN_UP(state.common_settings.height, 16);
 	format->es->video.crop.x = 0;
 	format->es->video.crop.y = 0;
-	format->es->video.crop.width = state->common_settings.width;
-	format->es->video.crop.height = state->common_settings.height;
-	format->es->video.frame_rate.num = state->framerate;
+	format->es->video.crop.width = state.common_settings.width;
+	format->es->video.crop.height = state.common_settings.height;
+	format->es->video.frame_rate.num = state.framerate;
 	format->es->video.frame_rate.den = VIDEO_FRAME_RATE_DEN;
 
 	status = mmal_port_format_commit(preview_port);
@@ -797,14 +785,14 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	format = video_port->format;
 	format->encoding_variant = MMAL_ENCODING_I420;
 
-	if (state->camera_parameters.shutter_speed > 6000000)
+	if (state.camera_parameters.shutter_speed > 6000000)
 	{
 		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
 												{5, 1000},
 												{166, 1000}};
 		mmal_port_parameter_set(video_port, &fps_range.hdr);
 	}
-	else if (state->camera_parameters.shutter_speed > 1000000)
+	else if (state.camera_parameters.shutter_speed > 1000000)
 	{
 		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
 												{167, 1000},
@@ -813,13 +801,13 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	}
 
 	format->encoding = MMAL_ENCODING_OPAQUE;
-	format->es->video.width = VCOS_ALIGN_UP(state->common_settings.width, 32);
-	format->es->video.height = VCOS_ALIGN_UP(state->common_settings.height, 16);
+	format->es->video.width = VCOS_ALIGN_UP(state.common_settings.width, 32);
+	format->es->video.height = VCOS_ALIGN_UP(state.common_settings.height, 16);
 	format->es->video.crop.x = 0;
 	format->es->video.crop.y = 0;
-	format->es->video.crop.width = state->common_settings.width;
-	format->es->video.crop.height = state->common_settings.height;
-	format->es->video.frame_rate.num = state->framerate;
+	format->es->video.crop.width = state.common_settings.width;
+	format->es->video.crop.height = state.common_settings.height;
+	format->es->video.frame_rate.num = state.framerate;
 	format->es->video.frame_rate.den = VIDEO_FRAME_RATE_DEN;
 
 	status = mmal_port_format_commit(video_port);
@@ -841,12 +829,12 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	format->encoding = MMAL_ENCODING_OPAQUE;
 	format->encoding_variant = MMAL_ENCODING_I420;
 
-	format->es->video.width = VCOS_ALIGN_UP(state->common_settings.width, 32);
-	format->es->video.height = VCOS_ALIGN_UP(state->common_settings.height, 16);
+	format->es->video.width = VCOS_ALIGN_UP(state.common_settings.width, 32);
+	format->es->video.height = VCOS_ALIGN_UP(state.common_settings.height, 16);
 	format->es->video.crop.x = 0;
 	format->es->video.crop.y = 0;
-	format->es->video.crop.width = state->common_settings.width;
-	format->es->video.crop.height = state->common_settings.height;
+	format->es->video.crop.width = state.common_settings.width;
+	format->es->video.crop.height = state.common_settings.height;
 	format->es->video.frame_rate.num = 0;
 	format->es->video.frame_rate.den = 1;
 
@@ -872,13 +860,13 @@ static MMAL_STATUS_T create_camera_component(RASPIVID_STATE *state)
 	}
 
 	// Note: this sets lots of parameters that were not individually addressed before.
-	raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
+	raspicamcontrol_set_all_parameters(camera, &(state.camera_parameters));
 
-	state->camera_component = camera;
+	state.camera_component = camera;
 
 	update_annotation_data(state);
 
-	if (state->common_settings.verbose)
+	if (state.common_settings.verbose)
 		fprintf(stderr, "Camera component done\n");
 
 	return status;
@@ -897,12 +885,12 @@ error:
  * @param state Pointer to state control struct
  *
  */
-static void destroy_camera_component(RASPIVID_STATE *state)
+static void destroy_camera_component()
 {
-	if (state->camera_component)
+	if (state.camera_component)
 	{
-		mmal_component_destroy(state->camera_component);
-		state->camera_component = NULL;
+		mmal_component_destroy(state.camera_component);
+		state.camera_component = NULL;
 	}
 }
 
@@ -914,7 +902,7 @@ static void destroy_camera_component(RASPIVID_STATE *state)
  * @return MMAL_SUCCESS if all OK, something else otherwise
  *
  */
-static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
+static MMAL_STATUS_T create_encoder_component()
 {
 	MMAL_COMPONENT_T *encoder = 0;
 	MMAL_PORT_T *encoder_input = NULL, *encoder_output = NULL;
@@ -943,39 +931,39 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 	mmal_format_copy(encoder_output->format, encoder_input->format);
 
 	// Only supporting H264 at the moment
-	encoder_output->format->encoding = state->encoding;
+	encoder_output->format->encoding = state.encoding;
 
-	if (state->encoding == MMAL_ENCODING_H264)
+	if (state.encoding == MMAL_ENCODING_H264)
 	{
-		if (state->level == MMAL_VIDEO_LEVEL_H264_4)
+		if (state.level == MMAL_VIDEO_LEVEL_H264_4)
 		{
-			if (state->bitrate > MAX_BITRATE_LEVEL4)
+			if (state.bitrate > MAX_BITRATE_LEVEL4)
 			{
 				fprintf(stderr, "Bitrate too high: Reducing to 25MBit/s\n");
-				state->bitrate = MAX_BITRATE_LEVEL4;
+				state.bitrate = MAX_BITRATE_LEVEL4;
 			}
 		}
 		else
 		{
-			if (state->bitrate > MAX_BITRATE_LEVEL42)
+			if (state.bitrate > MAX_BITRATE_LEVEL42)
 			{
 				fprintf(stderr, "Bitrate too high: Reducing to 62.5MBit/s\n");
-				state->bitrate = MAX_BITRATE_LEVEL42;
+				state.bitrate = MAX_BITRATE_LEVEL42;
 			}
 		}
 	}
-	else if (state->encoding == MMAL_ENCODING_MJPEG)
+	else if (state.encoding == MMAL_ENCODING_MJPEG)
 	{
-		if (state->bitrate > MAX_BITRATE_MJPEG)
+		if (state.bitrate > MAX_BITRATE_MJPEG)
 		{
 			fprintf(stderr, "Bitrate too high: Reducing to 25MBit/s\n");
-			state->bitrate = MAX_BITRATE_MJPEG;
+			state.bitrate = MAX_BITRATE_MJPEG;
 		}
 	}
 
-	encoder_output->format->bitrate = state->bitrate;
+	encoder_output->format->bitrate = state.bitrate;
 
-	if (state->encoding == MMAL_ENCODING_H264)
+	if (state.encoding == MMAL_ENCODING_H264)
 		encoder_output->buffer_size = encoder_output->buffer_size_recommended;
 	else
 		encoder_output->buffer_size = 256 << 10;
@@ -1014,10 +1002,10 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		}
 	}
 
-	if (state->encoding == MMAL_ENCODING_H264 &&
-		state->intraperiod != -1)
+	if (state.encoding == MMAL_ENCODING_H264 &&
+		state.intraperiod != -1)
 	{
-		MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_INTRAPERIOD, sizeof(param)}, state->intraperiod};
+		MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_INTRAPERIOD, sizeof(param)}, state.intraperiod};
 		status = mmal_port_parameter_set(encoder_output, &param.hdr);
 		if (status != MMAL_SUCCESS)
 		{
@@ -1026,17 +1014,17 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		}
 	}
 
-	if (state->encoding == MMAL_ENCODING_H264 && state->slices > 1 && state->common_settings.width <= 1280)
+	if (state.encoding == MMAL_ENCODING_H264 && state.slices > 1 && state.common_settings.width <= 1280)
 	{
-		int frame_mb_rows = VCOS_ALIGN_UP(state->common_settings.height, 16) >> 4;
+		int frame_mb_rows = VCOS_ALIGN_UP(state.common_settings.height, 16) >> 4;
 
-		if (state->slices > frame_mb_rows) // warn user if too many slices selected
+		if (state.slices > frame_mb_rows) // warn user if too many slices selected
 		{
-			fprintf(stderr, "H264 Slice count (%d) exceeds number of macroblock rows (%d). Setting slices to %d.\n", state->slices, frame_mb_rows, frame_mb_rows);
+			fprintf(stderr, "H264 Slice count (%d) exceeds number of macroblock rows (%d). Setting slices to %d.\n", state.slices, frame_mb_rows, frame_mb_rows);
 			// Continue rather than abort..
 		}
-		int slice_row_mb = frame_mb_rows / state->slices;
-		if (frame_mb_rows - state->slices * slice_row_mb)
+		int slice_row_mb = frame_mb_rows / state.slices;
+		if (frame_mb_rows - state.slices * slice_row_mb)
 			slice_row_mb++; // must round up to avoid extra slice if not evenly divided
 
 		status = mmal_port_parameter_set_uint32(encoder_output, MMAL_PARAMETER_MB_ROWS_PER_SLICE, slice_row_mb);
@@ -1047,10 +1035,10 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		}
 	}
 
-	if (state->encoding == MMAL_ENCODING_H264 &&
-		state->quantisationParameter)
+	if (state.encoding == MMAL_ENCODING_H264 &&
+		state.quantisationParameter)
 	{
-		MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, state->quantisationParameter};
+		MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, state.quantisationParameter};
 		status = mmal_port_parameter_set(encoder_output, &param.hdr);
 		if (status != MMAL_SUCCESS)
 		{
@@ -1058,7 +1046,7 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 			goto error;
 		}
 
-		MMAL_PARAMETER_UINT32_T param2 = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, state->quantisationParameter};
+		MMAL_PARAMETER_UINT32_T param2 = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, state.quantisationParameter};
 		status = mmal_port_parameter_set(encoder_output, &param2.hdr);
 		if (status != MMAL_SUCCESS)
 		{
@@ -1066,7 +1054,7 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 			goto error;
 		}
 
-		MMAL_PARAMETER_UINT32_T param3 = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, state->quantisationParameter};
+		MMAL_PARAMETER_UINT32_T param3 = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, state.quantisationParameter};
 		status = mmal_port_parameter_set(encoder_output, &param3.hdr);
 		if (status != MMAL_SUCCESS)
 		{
@@ -1075,20 +1063,20 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		}
 	}
 
-	if (state->encoding == MMAL_ENCODING_H264)
+	if (state.encoding == MMAL_ENCODING_H264)
 	{
 		MMAL_PARAMETER_VIDEO_PROFILE_T param;
 		param.hdr.id = MMAL_PARAMETER_PROFILE;
 		param.hdr.size = sizeof(param);
 
-		param.profile[0].profile = state->profile;
+		param.profile[0].profile = state.profile;
 
-		if ((VCOS_ALIGN_UP(state->common_settings.width, 16) >> 4) * (VCOS_ALIGN_UP(state->common_settings.height, 16) >> 4) * state->framerate > 245760)
+		if ((VCOS_ALIGN_UP(state.common_settings.width, 16) >> 4) * (VCOS_ALIGN_UP(state.common_settings.height, 16) >> 4) * state.framerate > 245760)
 		{
-			if ((VCOS_ALIGN_UP(state->common_settings.width, 16) >> 4) * (VCOS_ALIGN_UP(state->common_settings.height, 16) >> 4) * state->framerate <= 522240)
+			if ((VCOS_ALIGN_UP(state.common_settings.width, 16) >> 4) * (VCOS_ALIGN_UP(state.common_settings.height, 16) >> 4) * state.framerate <= 522240)
 			{
 				fprintf(stderr, "Too many macroblocks/s: Increasing H264 Level to 4.2\n");
-				state->level = MMAL_VIDEO_LEVEL_H264_42;
+				state.level = MMAL_VIDEO_LEVEL_H264_42;
 			}
 			else
 			{
@@ -1098,7 +1086,7 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 			}
 		}
 
-		param.profile[0].level = state->level;
+		param.profile[0].level = state.level;
 
 		status = mmal_port_parameter_set(encoder_output, &param.hdr);
 		if (status != MMAL_SUCCESS)
@@ -1108,37 +1096,37 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		}
 	}
 
-	if (mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, state->immutableInput) != MMAL_SUCCESS)
+	if (mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, state.immutableInput) != MMAL_SUCCESS)
 	{
 		vcos_log_error("Unable to set immutable input flag");
 		// Continue rather than abort..
 	}
 
-	if (state->encoding == MMAL_ENCODING_H264)
+	if (state.encoding == MMAL_ENCODING_H264)
 	{
 		// set INLINE HEADER flag to generate SPS and PPS for every IDR if requested
-		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_HEADER, state->bInlineHeaders) != MMAL_SUCCESS)
+		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_HEADER, state.bInlineHeaders) != MMAL_SUCCESS)
 		{
 			vcos_log_error("failed to set INLINE HEADER FLAG parameters");
 			// Continue rather than abort..
 		}
 
 		// set flag for add SPS TIMING
-		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, state->addSPSTiming) != MMAL_SUCCESS)
+		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, state.addSPSTiming) != MMAL_SUCCESS)
 		{
 			vcos_log_error("failed to set SPS TIMINGS FLAG parameters");
 			// Continue rather than abort..
 		}
 
 		// set INLINE VECTORS flag to request motion vector estimates
-		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_VECTORS, state->inlineMotionVectors) != MMAL_SUCCESS)
+		if (mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_INLINE_VECTORS, state.inlineMotionVectors) != MMAL_SUCCESS)
 		{
 			vcos_log_error("failed to set INLINE VECTORS parameters");
 			// Continue rather than abort..
 		}
 
 		// Adaptive intra refresh settings
-		if (state->intra_refresh_type != -1)
+		if (state.intra_refresh_type != -1)
 		{
 			MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T param;
 			param.hdr.id = MMAL_PARAMETER_VIDEO_INTRA_REFRESH;
@@ -1153,9 +1141,9 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 				param.air_mbs = param.air_ref = param.cir_mbs = param.pir_mbs = 0;
 			}
 
-			param.refresh_mode = state->intra_refresh_type;
+			param.refresh_mode = state.intra_refresh_type;
 
-			// if (state->intra_refresh_type == MMAL_VIDEO_INTRA_REFRESH_CYCLIC_MROWS)
+			// if (state.intra_refresh_type == MMAL_VIDEO_INTRA_REFRESH_CYCLIC_MROWS)
 			//    param.cir_mbs = 10;
 
 			status = mmal_port_parameter_set(encoder_output, &param.hdr);
@@ -1184,10 +1172,10 @@ static MMAL_STATUS_T create_encoder_component(RASPIVID_STATE *state)
 		vcos_log_error("Failed to create buffer header pool for encoder output port %s", encoder_output->name);
 	}
 
-	state->encoder_pool = pool;
-	state->encoder_component = encoder;
+	state.encoder_pool = pool;
+	state.encoder_component = encoder;
 
-	if (state->common_settings.verbose)
+	if (state.common_settings.verbose)
 		fprintf(stderr, "Encoder component done\n");
 
 	return status;
@@ -1196,7 +1184,7 @@ error:
 	if (encoder)
 		mmal_component_destroy(encoder);
 
-	state->encoder_component = NULL;
+	state.encoder_component = NULL;
 
 	return status;
 }
@@ -1207,18 +1195,18 @@ error:
  * @param state Pointer to state control struct
  *
  */
-static void destroy_encoder_component(RASPIVID_STATE *state)
+static void destroy_encoder_component()
 {
 	// Get rid of any port buffers first
-	if (state->encoder_pool)
+	if (state.encoder_pool)
 	{
-		mmal_port_pool_destroy(state->encoder_component->output[0], state->encoder_pool);
+		mmal_port_pool_destroy(state.encoder_component->output[0], state.encoder_pool);
 	}
 
-	if (state->encoder_component)
+	if (state.encoder_component)
 	{
-		mmal_component_destroy(state->encoder_component);
-		state->encoder_component = NULL;
+		mmal_component_destroy(state.encoder_component);
+		state.encoder_component = NULL;
 	}
 }
 
@@ -1230,7 +1218,7 @@ static void destroy_encoder_component(RASPIVID_STATE *state)
  * @param callback Struct contain an abort flag tested for early termination
  *
  */
-static int pause_and_test_abort(RASPIVID_STATE *state, int pause)
+static int pause_and_test_abort(int pause)
 {
 	int wait;
 
@@ -1241,7 +1229,7 @@ static int pause_and_test_abort(RASPIVID_STATE *state, int pause)
 	for (wait = 0; wait < pause; wait += ABORT_INTERVAL)
 	{
 		vcos_sleep(ABORT_INTERVAL);
-		if (state->callback_data.abort)
+		if (state.callback_data.abort)
 			return 1;
 	}
 
@@ -1255,7 +1243,7 @@ static int pause_and_test_abort(RASPIVID_STATE *state, int pause)
  *
  * @return !0 if to continue, 0 if reached end of run
  */
-static int wait_for_next_change(RASPIVID_STATE *state)
+static int wait_for_next_change()
 {
 	int keep_running = 1;
 	static int64_t complete_time = -1;
@@ -1264,22 +1252,22 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 	int64_t current_time = get_microseconds64() / 1000;
 
 	if (complete_time == -1)
-		complete_time = current_time + state->timeout;
+		complete_time = current_time + state.timeout;
 
 	// if we have run out of time, flag we need to exit
-	if (current_time >= complete_time && state->timeout != 0)
+	if (current_time >= complete_time && state.timeout != 0)
 		keep_running = 0;
 
-	switch (state->waitMethod)
+	switch (state.waitMethod)
 	{
 	case WAIT_METHOD_NONE:
-		(void)pause_and_test_abort(state, state->timeout);
+		(void)pause_and_test_abort(state.timeout);
 		return 0;
 
 	case WAIT_METHOD_FOREVER:
 	{
 		// We never return from this. Expect a ctrl-c to exit or abort.
-		while (!state->callback_data.abort)
+		while (!state.callback_data.abort)
 			// Have a sleep so we don't hog the CPU.
 			vcos_sleep(ABORT_INTERVAL);
 
@@ -1290,10 +1278,10 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 	{
 		int abort;
 
-		if (state->bCapturing)
-			abort = pause_and_test_abort(state, state->onTime);
+		if (state.bCapturing)
+			abort = pause_and_test_abort(state.onTime);
 		else
-			abort = pause_and_test_abort(state, state->offTime);
+			abort = pause_and_test_abort(state.offTime);
 
 		if (abort)
 			return 0;
@@ -1305,40 +1293,40 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 	{
 		char ch;
 
-		if (state->common_settings.verbose)
-			fprintf(stderr, "Press Enter to %s, X then ENTER to exit, [i,o,r] then ENTER to change zoom\n", state->bCapturing ? "pause" : "capture");
+		if (state.common_settings.verbose)
+			fprintf(stderr, "Press Enter to %s, X then ENTER to exit, [i,o,r] then ENTER to change zoom\n", state.bCapturing ? "pause" : "capture");
 
 		ch = getchar();
 		if (ch == 'x' || ch == 'X')
 			return 0;
 		else if (ch == 'i' || ch == 'I')
 		{
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				fprintf(stderr, "Starting zoom in\n");
 
-			raspicamcontrol_zoom_in_zoom_out(state->camera_component, ZOOM_IN, &(state->camera_parameters).roi);
+			raspicamcontrol_zoom_in_zoom_out(state.camera_component, ZOOM_IN, &(state.camera_parameters).roi);
 
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				dump_status(state);
 		}
 		else if (ch == 'o' || ch == 'O')
 		{
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				fprintf(stderr, "Starting zoom out\n");
 
-			raspicamcontrol_zoom_in_zoom_out(state->camera_component, ZOOM_OUT, &(state->camera_parameters).roi);
+			raspicamcontrol_zoom_in_zoom_out(state.camera_component, ZOOM_OUT, &(state.camera_parameters).roi);
 
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				dump_status(state);
 		}
 		else if (ch == 'r' || ch == 'R')
 		{
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				fprintf(stderr, "starting reset zoom\n");
 
-			raspicamcontrol_zoom_in_zoom_out(state->camera_component, ZOOM_RESET, &(state->camera_parameters).roi);
+			raspicamcontrol_zoom_in_zoom_out(state.camera_component, ZOOM_RESET, &(state.camera_parameters).roi);
 
-			if (state->common_settings.verbose)
+			if (state.common_settings.verbose)
 				dump_status(state);
 		}
 
@@ -1359,14 +1347,14 @@ static int wait_for_next_change(RASPIVID_STATE *state)
 		// variant of procmask to block SIGUSR1 so we can wait on it.
 		pthread_sigmask(SIG_BLOCK, &waitset, NULL);
 
-		if (state->common_settings.verbose)
+		if (state.common_settings.verbose)
 		{
-			fprintf(stderr, "Waiting for SIGUSR1 to %s\n", state->bCapturing ? "pause" : "capture");
+			fprintf(stderr, "Waiting for SIGUSR1 to %s\n", state.bCapturing ? "pause" : "capture");
 		}
 
 		result = sigwait(&waitset, &sig);
 
-		if (state->common_settings.verbose && result != 0)
+		if (state.common_settings.verbose && result != 0)
 			fprintf(stderr, "Bad signal received - error %d\n", errno);
 
 		return keep_running;
@@ -1383,7 +1371,7 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 	MMAL_STATUS_T mmal_status = MMAL_SUCCESS;
 
 	bcm_host_init();
-	default_status(&state);
+	default_status();
 	if (raspi_vid_cfg.raspi_vid_width > 0)
 	{
 		state.common_settings.width = raspi_vid_cfg.raspi_vid_width;
@@ -1405,16 +1393,16 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		state.intraperiod = raspi_vid_cfg.raspi_vid_gop;
 	}
 
-	if ((mmal_status = create_camera_component(&state)) != MMAL_SUCCESS)
+	if ((mmal_status = create_camera_component()) != MMAL_SUCCESS)
 	{
 		vcos_log_error("%s: Failed to create camera component", __func__);
 		exit_code = EX_SOFTWARE;
 	}
-	else if ((mmal_status = create_encoder_component(&state)) != MMAL_SUCCESS)
+	else if ((mmal_status = create_encoder_component()) != MMAL_SUCCESS)
 	{
 		vcos_log_error("%s: Failed to create encode component", __func__);
-		raspipreview_destroy(&state.preview_parameters);
-		destroy_camera_component(&state);
+		raspipreview_destroy(&(state.preview_parameters));
+		destroy_camera_component();
 		exit_code = EX_SOFTWARE;
 	}
 	else
@@ -1423,7 +1411,7 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		encoder_input_port = state.encoder_component->input[0];
 		encoder_output_port = state.encoder_component->output[0];
 
-		mmal_status = connect_ports(camera_video_port, encoder_input_port, &state.encoder_connection);
+		mmal_status = connect_ports(camera_video_port, encoder_input_port, &(state.encoder_connection));
 		if (mmal_status != MMAL_SUCCESS)
 		{
 			state.encoder_connection = NULL;
@@ -1434,7 +1422,7 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		state.callback_data.pstate = &state;
 		state.callback_data.abort = 0;
 		state.callback_data.file_handle = stdout;
-		encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *)&state.callback_data;
+		encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *)&(state.callback_data);
 
 		mmal_status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
 		if (mmal_status != MMAL_SUCCESS)
@@ -1473,7 +1461,7 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 				break;
 			}
 
-			running = wait_for_next_change(&state);
+			running = wait_for_next_change();
 		}
 
 	error:
@@ -1492,8 +1480,8 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 		if (state.camera_component)
 			mmal_component_disable(state.camera_component);
 
-		destroy_encoder_component(&state);
-		destroy_camera_component(&state);
+		destroy_encoder_component();
+		destroy_camera_component();
 	}
 
 	if (mmal_status != MMAL_SUCCESS)
