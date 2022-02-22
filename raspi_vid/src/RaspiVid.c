@@ -1,15 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdbool.h>
 #include <ctype.h>
-#include <memory.h>
 #include <sysexits.h>
-
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <arpa/inet.h>
-#include <time.h>
 
 #include "bcm_host.h"
 #include "interface/vcos/vcos.h"
@@ -25,15 +21,8 @@
 
 #include "RaspiCommonSettings.h"
 #include "RaspiCamControl.h"
-#include "RaspiPreview.h"
-#include "RaspiCLI.h"
 #include "RaspiHelpers.h"
-#include "RaspiGPS.h"
 #include "RaspiVid.h"
-
-#include <semaphore.h>
-
-#include <stdbool.h>
 
 #define MMAL_CAMERA_VIDEO_PORT 1
 
@@ -99,7 +88,6 @@ struct RASPIVID_STATE_S
 	int splitNow;	   /// Split at next possible i-frame if set to 1.
 	int splitWait;	   /// Switch if user wants splited files
 
-	RASPIPREVIEW_PARAMETERS preview_parameters;	  /// Preview setup parameters
 	RASPICAM_CAMERA_PARAMETERS camera_parameters; /// Camera setup parameters
 
 	MMAL_COMPONENT_T *camera_component;	   /// Pointer to the camera component
@@ -168,9 +156,6 @@ static void default_status()
 	state.netListen = false;
 	state.addSPSTiming = MMAL_FALSE;
 	state.slices = 1;
-
-	// Setup preview window defaults
-	raspipreview_set_defaults(&(state.preview_parameters));
 
 	// Set up the camera_parameters to default
 	raspicamcontrol_set_defaults(&(state.camera_parameters));
@@ -928,7 +913,6 @@ int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
 	else if ((mmal_status = create_encoder_component()) != MMAL_SUCCESS)
 	{
 		vcos_log_error("%s: Failed to create encode component", __func__);
-		raspipreview_destroy(&(state.preview_parameters));
 		destroy_camera_component();
 		exit_code = EX_SOFTWARE;
 	}
