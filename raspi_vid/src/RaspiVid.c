@@ -106,13 +106,10 @@ struct RASPIVID_STATE_S
 	int intraperiod;								/// Intra-refresh period (key frame rate)
 	int quantisationParameter;						/// Quantisation parameter - quality. Set bitrate 0 and set this for variable bitrate
 	int bInlineHeaders;								/// Insert inline headers to stream (SPS, PPS)
-	int demoMode;									/// Run app in demo mode
-	int demoInterval;								/// Interval between camera settings changes
 	int immutableInput;								/// Flag to specify whether encoder works in place or creates a new buffer. Result is preview can display either
 	/// the camera output or the encoder output (with compression artifacts)
 	int profile;	/// H264 profile to use for encoding
 	int level;		/// H264 level to use for encoding
-	int waitMethod; /// Method for switching between pause and capture
 
 	int onTime;	 /// In timed cycle mode, the amount of time the capture is on per cycle
 	int offTime; /// In timed cycle mode, the amount of time the capture is off per cycle
@@ -221,7 +218,6 @@ static void default_status()
 	raspicommonsettings_set_defaults(&(state.common_settings));
 
 	// Now set anything non-zero
-	state.timeout = 0; // replaced with 5000ms later if unset
 	state.common_settings.filename = "-";
 	state.common_settings.width = 1920; // Default to 1080p
 	state.common_settings.height = 1080;
@@ -230,12 +226,9 @@ static void default_status()
 	state.framerate = VIDEO_FRAME_RATE_NUM;
 	state.intraperiod = -1; // Not set
 	state.quantisationParameter = 0;
-	state.demoMode = 0;
-	state.demoInterval = 250; // ms
 	state.immutableInput = 1;
 	state.profile = MMAL_VIDEO_PROFILE_H264_HIGH;
 	state.level = MMAL_VIDEO_LEVEL_H264_4;
-	state.waitMethod = WAIT_METHOD_FOREVER;
 	state.onTime = 5000;
 	state.offTime = 5000;
 	state.bCapturing = 0;
@@ -257,41 +250,6 @@ static void default_status()
 
 	// Set up the camera_parameters to default
 	raspicamcontrol_set_defaults(&(state.camera_parameters));
-}
-
-/**
- * Dump image state parameters to stderr.
- *
- * @param state Pointer to state structure to assign defaults to
- */
-static void dump_status()
-{
-	int i;
-
-	raspicommonsettings_dump_parameters(&(state.common_settings));
-
-	fprintf(stderr, "bitrate %d, framerate %d, time delay %d\n", state.bitrate, state.framerate, state.timeout);
-	fprintf(stderr, "H264 Profile %s\n", raspicli_unmap_xref(state.profile, profile_map, profile_map_size));
-	fprintf(stderr, "H264 Level %s\n", raspicli_unmap_xref(state.level, level_map, level_map_size));
-	fprintf(stderr, "H264 Quantisation level %d, Inline headers %s\n", state.quantisationParameter, state.bInlineHeaders ? "Yes" : "No");
-	fprintf(stderr, "H264 Fill SPS Timings %s\n", state.addSPSTiming ? "Yes" : "No");
-	fprintf(stderr, "H264 Intra refresh type %s, period %d\n", raspicli_unmap_xref(state.intra_refresh_type, intra_refresh_map, intra_refresh_map_size), state.intraperiod);
-	fprintf(stderr, "H264 Slices %d\n", state.slices);
-
-	// Not going to display segment data unless asked for it.
-	if (state.segmentSize)
-		fprintf(stderr, "Segment size %d, segment wrap value %d, initial segment number %d\n", state.segmentSize, state.segmentWrap, state.segmentNumber);
-
-	fprintf(stderr, "Wait method : ");
-	for (i = 0; i < wait_method_description_size; i++)
-	{
-		if (state.waitMethod == wait_method_description[i].nextWaitMethod)
-			fprintf(stderr, "%s", wait_method_description[i].description);
-	}
-	fprintf(stderr, "\nInitial state '%s'\n", raspicli_unmap_xref(state.bCapturing, initial_map, initial_map_size));
-	fprintf(stderr, "\n\n");
-
-	raspicamcontrol_dump_parameters(&(state.camera_parameters));
 }
 
 /**
@@ -647,7 +605,7 @@ static MMAL_STATUS_T create_camera_component()
 {
 	MMAL_COMPONENT_T *camera = 0;
 	MMAL_ES_FORMAT_T *format;
-	MMAL_PORT_T *preview_port = NULL, *video_port = NULL, *still_port = NULL;
+	MMAL_PORT_T *video_port = NULL;
 	MMAL_STATUS_T status;
 
 	/* Create the component */
@@ -695,9 +653,7 @@ static MMAL_STATUS_T create_camera_component()
 		goto error;
 	}
 
-	preview_port = camera->output[MMAL_CAMERA_PREVIEW_PORT];
 	video_port = camera->output[MMAL_CAMERA_VIDEO_PORT];
-	still_port = camera->output[MMAL_CAMERA_CAPTURE_PORT];
 
 	// Enable the camera, and tell it its control callback function
 	status = mmal_port_enable(camera->control, default_camera_control_callback);
@@ -726,62 +682,7 @@ static MMAL_STATUS_T create_camera_component()
 		mmal_port_parameter_set(camera->control, &cam_config.hdr);
 	}
 
-	// Now set up the port formats
-
-	// Set the encode format on the Preview port
-	// HW limitations mean we need the preview to be the same size as the required recorded output
-
-	format = preview_port->format;
-
-	format->encoding = MMAL_ENCODING_OPAQUE;
-	format->encoding_variant = MMAL_ENCODING_I420;
-
-	if (state.camera_parameters.shutter_speed > 6000000)
-	{
-		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
-												{5, 1000},
-												{166, 1000}};
-		mmal_port_parameter_set(preview_port, &fps_range.hdr);
-	}
-	else if (state.camera_parameters.shutter_speed > 1000000)
-	{
-		MMAL_PARAMETER_FPS_RANGE_T fps_range = {{MMAL_PARAMETER_FPS_RANGE, sizeof(fps_range)},
-												{166, 1000},
-												{999, 1000}};
-		mmal_port_parameter_set(preview_port, &fps_range.hdr);
-	}
-
-	// enable dynamic framerate if necessary
-	if (state.camera_parameters.shutter_speed)
-	{
-		if (state.framerate > 1000000. / state.camera_parameters.shutter_speed)
-		{
-			state.framerate = 0;
-			if (state.common_settings.verbose)
-				fprintf(stderr, "Enable dynamic frame rate to fulfil shutter speed requirement\n");
-		}
-	}
-
-	format->encoding = MMAL_ENCODING_OPAQUE;
-	format->es->video.width = VCOS_ALIGN_UP(state.common_settings.width, 32);
-	format->es->video.height = VCOS_ALIGN_UP(state.common_settings.height, 16);
-	format->es->video.crop.x = 0;
-	format->es->video.crop.y = 0;
-	format->es->video.crop.width = state.common_settings.width;
-	format->es->video.crop.height = state.common_settings.height;
-	format->es->video.frame_rate.num = state.framerate;
-	format->es->video.frame_rate.den = VIDEO_FRAME_RATE_DEN;
-
-	status = mmal_port_format_commit(preview_port);
-
-	if (status != MMAL_SUCCESS)
-	{
-		vcos_log_error("camera viewfinder format couldn't be set");
-		goto error;
-	}
-
 	// Set the encode format on the video  port
-
 	format = video_port->format;
 	format->encoding_variant = MMAL_ENCODING_I420;
 
@@ -822,34 +723,6 @@ static MMAL_STATUS_T create_camera_component()
 	if (video_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
 		video_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
 
-	// Set the encode format on the still  port
-
-	format = still_port->format;
-
-	format->encoding = MMAL_ENCODING_OPAQUE;
-	format->encoding_variant = MMAL_ENCODING_I420;
-
-	format->es->video.width = VCOS_ALIGN_UP(state.common_settings.width, 32);
-	format->es->video.height = VCOS_ALIGN_UP(state.common_settings.height, 16);
-	format->es->video.crop.x = 0;
-	format->es->video.crop.y = 0;
-	format->es->video.crop.width = state.common_settings.width;
-	format->es->video.crop.height = state.common_settings.height;
-	format->es->video.frame_rate.num = 0;
-	format->es->video.frame_rate.den = 1;
-
-	status = mmal_port_format_commit(still_port);
-
-	if (status != MMAL_SUCCESS)
-	{
-		vcos_log_error("camera still format couldn't be set");
-		goto error;
-	}
-
-	/* Ensure there are enough buffers to avoid dropping frames */
-	if (still_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
-		still_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
-
 	/* Enable component */
 	status = mmal_component_enable(camera);
 
@@ -865,9 +738,6 @@ static MMAL_STATUS_T create_camera_component()
 	state.camera_component = camera;
 
 	update_annotation_data(state);
-
-	if (state.common_settings.verbose)
-		fprintf(stderr, "Camera component done\n");
 
 	return status;
 
