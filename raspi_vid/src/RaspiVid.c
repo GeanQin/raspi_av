@@ -35,14 +35,7 @@
 
 #include <stdbool.h>
 
-// Standard port setting for the camera component
-#define MMAL_CAMERA_PREVIEW_PORT 0
 #define MMAL_CAMERA_VIDEO_PORT 1
-#define MMAL_CAMERA_CAPTURE_PORT 2
-
-// Port configuration for the splitter component
-#define SPLITTER_OUTPUT_PORT 0
-#define SPLITTER_PREVIEW_PORT 1
 
 // Video format information
 // 0 implies variable
@@ -56,20 +49,6 @@
 const int MAX_BITRATE_MJPEG = 25000000;	  // 25Mbits/s
 const int MAX_BITRATE_LEVEL4 = 25000000;  // 25Mbits/s
 const int MAX_BITRATE_LEVEL42 = 62500000; // 62.5Mbits/s
-
-/// Interval at which we check for an failure abort during capture
-const int ABORT_INTERVAL = 100; // ms
-
-/// Capture/Pause switch method
-/// Simply capture for time specified
-enum
-{
-	WAIT_METHOD_NONE,	  /// Simply capture for time specified
-	WAIT_METHOD_TIMED,	  /// Cycle between capture and pause for times specified
-	WAIT_METHOD_KEYPRESS, /// Switch between capture and pause on keypress
-	WAIT_METHOD_SIGNAL,	  /// Switch between capture and pause on signal
-	WAIT_METHOD_FOREVER	  /// Run/record forever
-};
 
 // Forward
 typedef struct RASPIVID_STATE_S RASPIVID_STATE;
@@ -149,61 +128,6 @@ static MMAL_PORT_T *encoder_input_port = NULL;
 static MMAL_PORT_T *encoder_output_port = NULL;
 static RASPIVID_STATE state;
 static int running = 0;
-
-/// Structure to cross reference H264 profile strings against the MMAL parameter equivalent
-static XREF_T profile_map[] =
-	{
-		{"baseline", MMAL_VIDEO_PROFILE_H264_BASELINE},
-		{"main", MMAL_VIDEO_PROFILE_H264_MAIN},
-		{"high", MMAL_VIDEO_PROFILE_H264_HIGH},
-		//   {"constrained",  MMAL_VIDEO_PROFILE_H264_CONSTRAINED_BASELINE} // Does anyone need this?
-};
-
-static int profile_map_size = sizeof(profile_map) / sizeof(profile_map[0]);
-
-/// Structure to cross reference H264 level strings against the MMAL parameter equivalent
-static XREF_T level_map[] =
-	{
-		{"4", MMAL_VIDEO_LEVEL_H264_4},
-		{"4.1", MMAL_VIDEO_LEVEL_H264_41},
-		{"4.2", MMAL_VIDEO_LEVEL_H264_42},
-};
-
-static int level_map_size = sizeof(level_map) / sizeof(level_map[0]);
-
-static XREF_T initial_map[] =
-	{
-		{"record", 0},
-		{"pause", 1},
-};
-
-static int initial_map_size = sizeof(initial_map) / sizeof(initial_map[0]);
-
-static XREF_T intra_refresh_map[] =
-	{
-		{"cyclic", MMAL_VIDEO_INTRA_REFRESH_CYCLIC},
-		{"adaptive", MMAL_VIDEO_INTRA_REFRESH_ADAPTIVE},
-		{"both", MMAL_VIDEO_INTRA_REFRESH_BOTH},
-		{"cyclicrows", MMAL_VIDEO_INTRA_REFRESH_CYCLIC_MROWS},
-		//   {"random",       MMAL_VIDEO_INTRA_REFRESH_PSEUDO_RAND} Cannot use random, crashes the encoder. No idea why.
-};
-
-static int intra_refresh_map_size = sizeof(intra_refresh_map) / sizeof(intra_refresh_map[0]);
-
-static struct
-{
-	char *description;
-	int nextWaitMethod;
-} wait_method_description[] =
-	{
-		{"Simple capture", WAIT_METHOD_NONE},
-		{"Capture forever", WAIT_METHOD_FOREVER},
-		{"Cycle on time", WAIT_METHOD_TIMED},
-		{"Cycle on keypress", WAIT_METHOD_KEYPRESS},
-		{"Cycle on signal", WAIT_METHOD_SIGNAL},
-};
-
-static int wait_method_description_size = sizeof(wait_method_description) / sizeof(wait_method_description[0]);
 
 /**
  * Assign a default set of parameters to the state passed in
@@ -431,60 +355,6 @@ static FILE *open_filename(RASPIVID_STATE *pState, char *filename)
 }
 
 /**
- * Update any annotation data specific to the video.
- * This simply passes on the setting from cli, or
- * if application defined annotate requested, updates
- * with the H264 parameters
- *
- * @param state Pointer to state control struct
- *
- */
-static void update_annotation_data()
-{
-	// So, if we have asked for a application supplied string, set it to the H264 or GPS parameters
-	if (state.camera_parameters.enable_annotate & ANNOTATE_APP_TEXT)
-	{
-		char *text;
-
-		if (state.common_settings.gps)
-		{
-			text = raspi_gps_location_string();
-		}
-		else
-		{
-			const char *refresh = raspicli_unmap_xref(state.intra_refresh_type, intra_refresh_map, intra_refresh_map_size);
-
-			asprintf(&text, "%dk,%df,%s,%d,%s,%s",
-					 state.bitrate / 1000, state.framerate,
-					 refresh ? refresh : "(none)",
-					 state.intraperiod,
-					 raspicli_unmap_xref(state.profile, profile_map, profile_map_size),
-					 raspicli_unmap_xref(state.level, level_map, level_map_size));
-		}
-
-		raspicamcontrol_set_annotate(state.camera_component, state.camera_parameters.enable_annotate, text,
-									 state.camera_parameters.annotate_text_size,
-									 state.camera_parameters.annotate_text_colour,
-									 state.camera_parameters.annotate_bg_colour,
-									 state.camera_parameters.annotate_justify,
-									 state.camera_parameters.annotate_x,
-									 state.camera_parameters.annotate_y);
-
-		free(text);
-	}
-	else
-	{
-		raspicamcontrol_set_annotate(state.camera_component, state.camera_parameters.enable_annotate, state.camera_parameters.annotate_string,
-									 state.camera_parameters.annotate_text_size,
-									 state.camera_parameters.annotate_text_colour,
-									 state.camera_parameters.annotate_bg_colour,
-									 state.camera_parameters.annotate_justify,
-									 state.camera_parameters.annotate_x,
-									 state.camera_parameters.annotate_y);
-	}
-}
-
-/**
  *  buffer header callback function for encoder
  *
  *  Callback will dump buffer data to the specific file
@@ -495,54 +365,11 @@ static void update_annotation_data()
 static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
 	MMAL_BUFFER_HEADER_T *new_buffer;
-	static int64_t base_time = -1;
-	static int64_t last_second = -1;
-
-	// All our segment times based on the receipt of the first encoder callback
-	if (base_time == -1)
-		base_time = get_microseconds64() / 1000;
-
-	// We pass our file handle and other stuff in via the userdata field.
-
 	PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
 
 	if (pData)
 	{
 		int bytes_written = buffer->length;
-		int64_t current_time = get_microseconds64() / 1000;
-
-		vcos_assert(pData->file_handle);
-
-		// For segmented record mode, we need to see if we have exceeded our time/size,
-		// but also since we have inline headers turned on we need to break when we get one to
-		// ensure that the new stream has the header in it. If we break on an I-frame, the
-		// SPS/PPS header is actually in the previous chunk.
-		if ((buffer->flags & MMAL_BUFFER_HEADER_FLAG_CONFIG) &&
-			((pData->pstate->segmentSize && current_time > base_time + pData->pstate->segmentSize) ||
-			 (pData->pstate->splitWait && pData->pstate->splitNow)))
-		{
-			FILE *new_handle;
-
-			base_time = current_time;
-
-			pData->pstate->splitNow = 0;
-			pData->pstate->segmentNumber++;
-
-			// Only wrap if we have a wrap point set
-			if (pData->pstate->segmentWrap && pData->pstate->segmentNumber > pData->pstate->segmentWrap)
-				pData->pstate->segmentNumber = 1;
-
-			if (pData->pstate->common_settings.filename && pData->pstate->common_settings.filename[0] != '-')
-			{
-				new_handle = open_filename(pData->pstate, pData->pstate->common_settings.filename);
-
-				if (new_handle)
-				{
-					fclose(pData->file_handle);
-					pData->file_handle = new_handle;
-				}
-			}
-		}
 		if (buffer->length)
 		{
 			mmal_buffer_header_mem_lock(buffer);
@@ -555,19 +382,6 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 			}
 
 			mmal_buffer_header_mem_unlock(buffer);
-
-			if (bytes_written != buffer->length)
-			{
-				vcos_log_error("Failed to write buffer data (%d from %d)- aborting", bytes_written, buffer->length);
-				pData->abort = 1;
-			}
-		}
-
-		// See if the second count has changed and we need to update any annotation
-		if (current_time / 1000 != last_second)
-		{
-			update_annotation_data(pData->pstate);
-			last_second = current_time / 1000;
 		}
 	}
 	else
@@ -736,8 +550,6 @@ static MMAL_STATUS_T create_camera_component()
 	raspicamcontrol_set_all_parameters(camera, &(state.camera_parameters));
 
 	state.camera_component = camera;
-
-	update_annotation_data(state);
 
 	return status;
 
@@ -1078,32 +890,6 @@ static void destroy_encoder_component()
 		mmal_component_destroy(state.encoder_component);
 		state.encoder_component = NULL;
 	}
-}
-
-/**
- * Pause for specified time, but return early if detect an abort request
- *
- * @param state Pointer to state control struct
- * @param pause Time in ms to pause
- * @param callback Struct contain an abort flag tested for early termination
- *
- */
-static int pause_and_test_abort(int pause)
-{
-	int wait;
-
-	if (!pause)
-		return 0;
-
-	// Going to check every ABORT_INTERVAL milliseconds
-	for (wait = 0; wait < pause; wait += ABORT_INTERVAL)
-	{
-		vcos_sleep(ABORT_INTERVAL);
-		if (state.callback_data.abort)
-			return 1;
-	}
-
-	return 0;
 }
 
 int raspi_vid_init(struct raspi_vid_cfg_t raspi_vid_cfg)
